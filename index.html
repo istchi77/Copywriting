@@ -1,963 +1,907 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Save, FileText, Calendar, Hash, Type, 
-  Trash2, Edit, Plus, Wand2, Loader2, AlertCircle, CheckCircle2, Check,
-  FolderOpen, Folder, MessageCircle, Eye, X, ThumbsUp, Share2, Bookmark, MoreHorizontal, Sparkles, AlertTriangle
-} from 'lucide-react';
-
-export default function App() {
-  // 專案與子資料夾結構 (主專案 -> 子資料夾/階段)
-  const [projects, setProjects] = useState({
-    '預設專案': ['預設子資料夾'],
-    '夏季保養品推廣': ['第一階段 6月', '第二階段 7月'],
-    '美食開箱': ['第一階段']
-  });
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newPhaseName, setNewPhaseName] = useState('');
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>專業口碑發文管理與企劃系統</title>
   
-  const [selectedProject, setSelectedProject] = useState('全部');
-  const [selectedPhase, setSelectedPhase] = useState('全部');
-
-  // 系統自訂彈跳視窗狀態 (取代系統原生 confirm / alert)
-  const [dialog, setDialog] = useState({
-    isOpen: false,
-    type: 'alert', // 'alert' 或是 'confirm'
-    title: '',
-    message: '',
-    onConfirm: null
-  });
-
-  // 表單狀態
-  const [form, setForm] = useState({
-    id: null,
-    project: '預設專案',
-    phase: '預設子資料夾',
-    month: '', 
-    publishDate: '', 
-    articleNo: '',
-    title: '',
-    platform: 'Dcard', 
-    board: '', 
-    content: '',
-    plan: '', 
-    comments: [{ text: '' }]
-  });
-
-  // 批量留言狀態
-  const [batchComments, setBatchComments] = useState('');
-  const [showBatchInput, setShowBatchInput] = useState(false);
-
-  // 儲存的文案列表
-  const [posts, setPosts] = useState([]);
+  <!-- 載入 Tailwind CSS 樣式庫 -->
+  <script src="https://cdn.tailwindcss.com"></script>
   
-  // UI 狀態
-  const [isChecking, setIsChecking] = useState(false);
-  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-  const [typos, setTypos] = useState(null);
-  const [checkError, setCheckError] = useState('');
-  const [showPreview, setShowPreview] = useState(false);
-
-  const textareaRef = useRef(null);
-  const planTextareaRef = useRef(null);
-
-  // 自動調整內文輸入框高度
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.max(150, textareaRef.current.scrollHeight)}px`;
+  <!-- 載入 Babel 編譯器 (讓瀏覽器能直接讀懂 React JSX 語法) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <style>
+    /* 自訂卷軸樣式，讓畫面更精美 */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
     }
-  }, [form.content]);
-
-  // 自動調整企劃輸入框高度
-  useEffect(() => {
-    if (planTextareaRef.current) {
-      planTextareaRef.current.style.height = 'auto';
-      planTextareaRef.current.style.height = `${Math.max(100, planTextareaRef.current.scrollHeight)}px`;
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
     }
-  }, [form.plan]);
-
-  // 顯示對話框 Helper
-  const showDialog = (type, title, message, onConfirm = null) => {
-    setDialog({ isOpen: true, type, title, message, onConfirm });
-  };
-
-  const closeDialog = () => {
-    setDialog({ ...dialog, isOpen: false });
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
-    if (name === 'content' && typos !== null) {
-      setTypos(null);
-      setCheckError('');
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
     }
-  };
-
-  const handleProjectChange = (e) => {
-    const newProj = e.target.value;
-    setForm(prev => ({
-      ...prev,
-      project: newProj,
-      phase: projects[newProj]?.[0] || ''
-    }));
-  };
-
-  const handleCommentChange = (index, value) => {
-    const newComments = [...form.comments];
-    newComments[index].text = value;
-    setForm(prev => ({ ...prev, comments: newComments }));
-  };
-
-  const addCommentField = () => {
-    setForm(prev => ({ ...prev, comments: [...prev.comments, { text: '' }] }));
-  };
-
-  const removeCommentField = (index) => {
-    const newComments = form.comments.filter((_, i) => i !== index);
-    setForm(prev => ({ ...prev, comments: newComments.length ? newComments : [{ text: '' }] }));
-  };
-
-  // 批量新增留言
-  const applyBatchComments = () => {
-    const lines = batchComments.split('\n').map(l => l.trim()).filter(l => l);
-    if (lines.length > 0) {
-      const newComments = lines.map(l => ({ text: l }));
-      const currentFiltered = form.comments.filter(c => c.text.trim());
-      setForm(prev => ({ ...prev, comments: [...currentFiltered, ...newComments] }));
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
     }
-    setBatchComments('');
-    setShowBatchInput(false);
-  };
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+  
+  <!-- React 應用程式的掛載點 -->
+  <div id="root"></div>
 
-  // 資料夾處理 (新增/刪除專案與子階段)
-  const addProject = () => {
-    const name = newProjectName.trim();
-    if (name && !projects[name]) {
-      setProjects(prev => ({ ...prev, [name]: ['預設子資料夾'] }));
-      setForm(prev => ({ ...prev, project: name, phase: '預設子資料夾' }));
-      setNewProjectName('');
-    }
-  };
-
-  const deleteProject = (projectName) => {
-    if (projectName === '預設專案') {
-      showDialog('alert', '操作錯誤', '「預設專案」為系統預設，無法刪除！');
-      return;
-    }
+  <script type="text/babel" data-type="module">
+    // 直接從 CDN 匯入 React 與 ReactDOM
+    import React, { useState, useRef, useEffect } from 'https://esm.sh/react@18.2.0';
+    import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
     
-    showDialog('confirm', '刪除專案確認', `確定要刪除主專案「${projectName}」嗎？\n這將會同步刪除該專案底下的所有文案！`, () => {
-      const newProjects = { ...projects };
-      delete newProjects[projectName];
-      setProjects(newProjects);
+    // 匯入所有的 Lucide 圖示
+    import { 
+      Save, FileText, Calendar, Hash, Type, 
+      Trash2, Edit, Plus, Wand2, Loader2, AlertCircle, CheckCircle2, Check,
+      FolderOpen, Folder, MessageCircle, Eye, X, ThumbsUp, Share2, Bookmark, MoreHorizontal, Sparkles, AlertTriangle
+    } from 'https://esm.sh/lucide-react@0.292.0';
+
+    function App() {
+      const [projects, setProjects] = useState({
+        '預設專案': ['預設子資料夾'],
+        '夏季保養品推廣': ['第一階段 6月', '第二階段 7月'],
+        '美食開箱': ['第一階段']
+      });
+      const [newProjectName, setNewProjectName] = useState('');
+      const [newPhaseName, setNewPhaseName] = useState('');
       
-      // 同步刪除關聯的文案
-      setPosts(prev => prev.filter(p => p.project !== projectName));
-      
-      if (form.project === projectName) {
-        setForm(prev => ({ ...prev, project: '預設專案', phase: projects['預設專案'][0] }));
-      }
-      if (selectedProject === projectName) {
-        setSelectedProject('全部');
-        setSelectedPhase('全部');
-      }
-    });
-  };
+      const [selectedProject, setSelectedProject] = useState('全部');
+      const [selectedPhase, setSelectedPhase] = useState('全部');
 
-  const addPhase = () => {
-    const phase = newPhaseName.trim();
-    if (phase && form.project && !projects[form.project].includes(phase)) {
-      setProjects(prev => ({
-        ...prev,
-        [form.project]: [...prev[form.project], phase]
-      }));
-      setForm(prev => ({ ...prev, phase: phase }));
-      setNewPhaseName('');
-    }
-  };
-
-  const deletePhase = (projectName, phaseName) => {
-    if (projectName === '預設專案' && phaseName === '預設子資料夾') {
-      showDialog('alert', '操作錯誤', '「預設子資料夾」無法刪除！');
-      return;
-    }
-    if (projects[projectName].length <= 1) {
-      showDialog('alert', '操作錯誤', '每個主專案至少需要保留一個子資料夾！');
-      return;
-    }
-
-    showDialog('confirm', '刪除階段確認', `確定要刪除「${projectName} - ${phaseName}」嗎？\n內部所有相關聯的文案都會被刪除！`, () => {
-      setProjects(prev => ({
-        ...prev,
-        [projectName]: prev[projectName].filter(p => p !== phaseName)
-      }));
-      
-      // 同步刪除關聯的文案
-      setPosts(prev => prev.filter(p => !(p.project === projectName && p.phase === phaseName)));
-      
-      if (form.project === projectName && form.phase === phaseName) {
-        setForm(prev => ({ ...prev, phase: projects[projectName].filter(p => p !== phaseName)[0] }));
-      }
-      if (selectedProject === projectName && selectedPhase === phaseName) {
-        setSelectedPhase('全部');
-      }
-    });
-  };
-
-  const calculatePureLength = (str) => {
-    if (!str) return 0;
-    return str.replace(/[\p{P}\p{S}\s]/gu, '').length;
-  };
-
-  const pureCount = calculatePureLength(form.content);
-
-  const handleSave = () => {
-    if (!form.content.trim()) {
-      showDialog('alert', '無法儲存', '文案內容不能為空！');
-      return;
-    }
-    
-    const cleanComments = form.comments.filter(c => c.text.trim() !== '');
-    const postData = { ...form, comments: cleanComments.length ? cleanComments : [{ text: '' }] };
-
-    if (form.id) {
-      setPosts(posts.map(p => p.id === form.id ? postData : p));
-    } else {
-      const newPost = { ...postData, id: Date.now() };
-      setPosts([newPost, ...posts]);
-    }
-    handleClear();
-  };
-
-  const handleClear = () => {
-    const defaultProj = selectedProject === '全部' ? '預設專案' : selectedProject;
-    const defaultPhase = selectedPhase === '全部' ? projects[defaultProj][0] : selectedPhase;
-
-    setForm({
-      id: null,
-      project: defaultProj,
-      phase: defaultPhase,
-      month: '',
-      publishDate: '',
-      articleNo: '',
-      title: '',
-      platform: 'Dcard',
-      board: '',
-      content: '',
-      plan: '',
-      comments: [{ text: '' }]
-    });
-    setTypos(null);
-  };
-
-  const handleEdit = (post) => {
-    setForm(post);
-    setTypos(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleDelete = (id) => {
-    showDialog('confirm', '刪除文案', '確定要刪除這篇文案嗎？', () => {
-      setPosts(posts.filter(p => p.id !== id));
-      if (form.id === id) handleClear();
-    });
-  };
-
-  const fetchWithBackoff = async (url, options, maxRetries = 5) => {
-    const delays = [1000, 2000, 4000, 8000, 16000];
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        const response = await fetch(url, options);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        return await response.json();
-      } catch (error) {
-        if (i === maxRetries - 1) throw error;
-        await new Promise(resolve => setTimeout(resolve, delays[i]));
-      }
-    }
-  };
-
-  const runTypoCheck = async () => {
-    if (pureCount === 0) return;
-    setIsChecking(true);
-    setTypos(null);
-    setCheckError('');
-
-    try {
-      const apiKey = ""; 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-      const prompt = `請檢查以下文字的錯別字與不順暢處。回傳JSON格式: {"typos": [{"wrong": "錯字", "correct": "正字", "reason": "原因"}]}。若無錯字回傳 {"typos": []}。\n文字:\n${form.content}`;
-
-      const data = await fetchWithBackoff(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: "application/json" }
-        })
+      const [dialog, setDialog] = useState({
+        isOpen: false,
+        type: 'alert', 
+        title: '',
+        message: '',
+        onConfirm: null
       });
 
-      const parsed = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text || '{"typos":[]}');
-      setTypos(parsed.typos || []);
-    } catch (error) {
-      setCheckError("AI 檢查暫時無法連線，請稍後再試。");
-    } finally {
-      setIsChecking(false);
-    }
-  };
-
-  const applyFix = (wrong, correct, index) => {
-    setForm(prev => ({ ...prev, content: prev.content.replace(wrong, correct) }));
-    setTypos(prevTypos => prevTypos.filter((_, i) => i !== index));
-  };
-
-  const generatePlan = async () => {
-    if (!form.content.trim()) {
-      showDialog('alert', '生成失敗', '請先填寫文案內容，AI 才能幫你生成企劃！');
-      return;
-    }
-    
-    setIsGeneratingPlan(true);
-
-    try {
-      const apiKey = ""; 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-
-      const promptText = `
-        請你閱讀以下的「口碑文案」與「預設留言」，幫我整理成「客戶看得懂的新版寫作方向」。
-        請嚴格遵守以下格式，不需要額外的問候語，字數請精簡在100字以內。每點內容簡明扼要，但要有完整邏輯。
-
-        格式為：
-        1. 主文方向
-        a.
-        b.
-        c.
-        
-        2. 回文方向
-        >>
-
-        文案標題：${form.title}
-        文案內容：
-        ${form.content}
-        
-        預設留言/回文：
-        ${form.comments.map((c, i) => `樓層${i+1}: ${c.text}`).join('\n')}
-      `;
-
-      const data = await fetchWithBackoff(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: promptText }] }],
-        })
+      const [form, setForm] = useState({
+        id: null,
+        project: '預設專案',
+        phase: '預設子資料夾',
+        month: '', 
+        publishDate: '', 
+        articleNo: '',
+        title: '',
+        platform: 'Dcard', 
+        board: '', 
+        content: '',
+        plan: '', 
+        comments: [{ text: '' }]
       });
 
-      const generatedPlan = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      setForm(prev => ({ ...prev, plan: generatedPlan.trim() }));
+      const [batchComments, setBatchComments] = useState('');
+      const [showBatchInput, setShowBatchInput] = useState(false);
+      const [posts, setPosts] = useState([]);
       
-    } catch (error) {
-      showDialog('alert', '生成失敗', 'AI 生成企劃失敗，請稍後再試。');
-      console.error(error);
-    } finally {
-      setIsGeneratingPlan(false);
-    }
-  };
+      const [isChecking, setIsChecking] = useState(false);
+      const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+      const [typos, setTypos] = useState(null);
+      const [checkError, setCheckError] = useState('');
+      const [showPreview, setShowPreview] = useState(false);
 
-  const CustomDialog = () => {
-    if (!dialog.isOpen) return null;
-    return (
-      <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-          <div className={`p-4 border-b ${dialog.type === 'confirm' ? 'bg-red-50 border-red-100' : 'bg-blue-50 border-blue-100'} flex items-center gap-3`}>
-            {dialog.type === 'confirm' ? <AlertTriangle className="text-red-600" /> : <AlertCircle className="text-blue-600" />}
-            <h3 className="text-lg font-bold text-slate-800">{dialog.title}</h3>
-          </div>
-          <div className="p-5">
-            <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{dialog.message}</p>
-          </div>
-          <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-            {dialog.type === 'confirm' && (
-              <button
-                onClick={closeDialog}
-                className="px-5 py-2 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors"
-              >
-                取消
-              </button>
-            )}
-            <button
-              onClick={() => {
-                if (dialog.onConfirm) dialog.onConfirm();
-                closeDialog();
-              }}
-              className={`px-5 py-2 rounded-xl font-bold text-white shadow-sm transition-colors ${
-                dialog.type === 'confirm' ? 'bg-red-600 hover:bg-red-700 shadow-red-600/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
-              }`}
-            >
-              {dialog.type === 'confirm' ? '確定刪除' : '我知道了'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
+      const textareaRef = useRef(null);
+      const planTextareaRef = useRef(null);
 
-  const PreviewModal = () => {
-    if (!showPreview) return null;
+      useEffect(() => {
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+          textareaRef.current.style.height = `${Math.max(150, textareaRef.current.scrollHeight)}px`;
+        }
+      }, [form.content]);
 
-    const renderPlatformUI = () => {
-      if (form.platform === 'Dcard') {
-        return (
-          <div className="bg-[#006aa6] min-h-full p-4 font-sans selection:bg-blue-300">
-            <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md overflow-hidden mt-4">
-              <div className="p-5 pb-2">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-[#006aa6] rounded-full flex items-center justify-center text-white font-bold text-lg">
-                    {form.board ? form.board.charAt(0) : '匿'}
-                  </div>
-                  <div>
-                    <p className="font-bold text-[#333] text-[15px]">{form.board || '匿名版'} • 匿名</p>
-                    <p className="text-gray-400 text-xs">{form.publishDate ? form.publishDate : '剛剛'}</p>
-                  </div>
-                </div>
-                <h1 className="text-2xl font-bold text-black mb-4 leading-snug">{form.title || '（無標題）'}</h1>
-                <div className="text-[15px] text-[#333] leading-relaxed whitespace-pre-wrap break-words">
-                  {form.content}
-                </div>
-              </div>
-              <div className="flex items-center px-5 py-3 border-t border-gray-100 mt-6 gap-6 text-gray-500">
-                <div className="flex items-center gap-1.5"><ThumbsUp size={20} className="text-pink-500" /> <span>0</span></div>
-                <div className="flex items-center gap-1.5"><MessageCircle size={20} /> <span>{form.comments.filter(c=>c.text).length}</span></div>
-                <div className="flex items-center gap-1.5"><Bookmark size={20} /> <span>收藏</span></div>
-              </div>
-              <div className="bg-gray-50 p-5">
-                <div className="text-sm text-gray-500 mb-4">共 {form.comments.filter(c=>c.text).length} 則留言</div>
-                {form.comments.filter(c => c.text).map((comment, idx) => (
-                  <div key={idx} className="flex gap-3 mb-4">
-                    <div className="w-8 h-8 rounded-full bg-gray-300 flex-shrink-0"></div>
-                    <div className="bg-white p-3 rounded-2xl rounded-tl-sm shadow-sm flex-1 text-[14px]">
-                      <span className="font-bold text-gray-700 block mb-1">B{idx + 1}</span>
-                      {comment.text}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-      }
+      useEffect(() => {
+        if (planTextareaRef.current) {
+          planTextareaRef.current.style.height = 'auto';
+          planTextareaRef.current.style.height = `${Math.max(100, planTextareaRef.current.scrollHeight)}px`;
+        }
+      }, [form.plan]);
 
-      if (form.platform === 'Threads') {
-        return (
-          <div className="bg-[#101010] min-h-full p-4 font-sans text-white flex justify-center">
-            <div className="w-full max-w-[500px] border-b border-gray-800 pb-4 mt-8">
-              <div className="flex gap-3">
-                <div className="flex flex-col items-center">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-500 to-orange-500 z-10"></div>
-                  <div className="w-0.5 bg-gray-800 h-full mt-2"></div>
-                </div>
-                <div className="flex-1 pb-2">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-[15px]">username</span>
-                    <div className="flex items-center gap-2 text-gray-500">
-                      <span className="text-sm">{form.publishDate ? form.publishDate : '1m'}</span>
-                      <MoreHorizontal size={16} />
-                    </div>
-                  </div>
-                  {form.title && <p className="font-bold mt-1 text-[15px]">{form.title}</p>}
-                  <p className="text-[15px] mt-1 whitespace-pre-wrap leading-relaxed">
-                    {form.content}
-                  </p>
-                  
-                  <div className="flex gap-4 mt-4 text-gray-800">
-                    <ThumbsUp size={20} className="hover:text-gray-500 cursor-pointer" />
-                    <MessageCircle size={20} className="hover:text-gray-500 cursor-pointer" />
-                    <Share2 size={20} className="hover:text-gray-500 cursor-pointer" />
-                  </div>
-                </div>
-              </div>
-              {form.comments.filter(c => c.text).map((comment, idx) => (
-                <div key={idx} className="flex gap-3 mt-4 relative">
-                  <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-gray-600 z-10"></div>
-                    {idx !== form.comments.filter(c=>c.text).length -1 && <div className="w-0.5 bg-gray-800 h-full mt-2"></div>}
-                  </div>
-                  <div className="flex-1 pb-2 border-b border-gray-800/50">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-[14px]">reply_user_{idx+1}</span>
-                      <span className="text-gray-500 text-sm">now</span>
-                    </div>
-                    <p className="text-[14px] mt-1 whitespace-pre-wrap">{comment.text}</p>
-                    <div className="flex gap-4 mt-3 text-gray-800">
-                      <ThumbsUp size={16} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      }
+      const showDialog = (type, title, message, onConfirm = null) => {
+        setDialog({ isOpen: true, type, title, message, onConfirm });
+      };
 
-      return (
-        <div className="bg-[#f0f0f0] min-h-full p-4 font-sans">
-          <div className="max-w-4xl mx-auto bg-white border-t-4 border-[#86c12c] shadow-sm mt-4">
-             <div className="bg-[#f9f9f9] p-4 border-b border-gray-200">
-                <div className="text-[#86c12c] font-bold text-lg mb-2">首頁 &gt; {form.board || '討論區'}</div>
-                <h1 className="text-[22px] font-bold text-[#333] mb-3">{form.title || '（無標題）'}</h1>
-                <div className="flex items-center gap-4 text-xs text-gray-500">
-                  <span className="text-blue-600 font-bold">作者_01</span>
-                  <span>{form.publishDate ? form.publishDate : '2023-XX-XX 12:00'}</span>
-                  <span>100 觀看</span>
-                  <span>{form.comments.filter(c=>c.text).length} 留言</span>
-                </div>
-             </div>
-             
-             <div className="p-6">
-                <div className="text-[16px] text-[#333] leading-8 whitespace-pre-wrap">
-                  {form.content}
-                </div>
-             </div>
+      const closeDialog = () => {
+        setDialog({ ...dialog, isOpen: false });
+      };
 
-             <div className="bg-gray-100 border-t border-gray-200">
-                {form.comments.filter(c => c.text).map((comment, idx) => (
-                  <div key={idx} className="flex bg-white mb-2 border border-gray-200">
-                    <div className="w-[120px] bg-[#f9f9f9] p-3 border-r border-gray-200 flex flex-col items-center">
-                       <div className="w-12 h-12 bg-gray-300 mb-2"></div>
-                       <span className="text-blue-600 font-bold text-xs">User_{idx+1}</span>
-                    </div>
-                    <div className="flex-1 p-4 relative">
-                       <div className="absolute top-2 right-4 text-xs text-gray-400">#{idx + 2}</div>
-                       <div className="text-[15px] leading-7 whitespace-pre-wrap">{comment.text}</div>
-                    </div>
-                  </div>
-                ))}
-             </div>
-          </div>
-        </div>
-      );
-    };
+      const handleChange = (e) => {
+        const { name, value } = e.target;
+        setForm(prev => ({ ...prev, [name]: value }));
+        if (name === 'content' && typos !== null) {
+          setTypos(null);
+          setCheckError('');
+        }
+      };
 
-    return (
-      <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-        <div className="bg-white w-full max-w-5xl h-[90vh] rounded-xl overflow-hidden flex flex-col shadow-2xl">
-          <div className="flex justify-between items-center p-4 border-b bg-gray-50">
-            <h2 className="text-lg font-bold flex items-center gap-2">
-              <Eye className="text-blue-500" /> 
-              模擬發布預覽 ({form.platform})
-            </h2>
-            <button onClick={() => setShowPreview(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
-              <X size={24} />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto relative">
-            {renderPlatformUI()}
-          </div>
-        </div>
-      </div>
-    );
-  };
+      const handleProjectChange = (e) => {
+        const newProj = e.target.value;
+        setForm(prev => ({
+          ...prev,
+          project: newProj,
+          phase: projects[newProj]?.[0] || ''
+        }));
+      };
 
-  return (
-    <div className="min-h-screen bg-slate-100 p-2 md:p-6 font-sans text-slate-800">
-      <CustomDialog />
-      <div className="max-w-7xl mx-auto flex flex-col xl:flex-row gap-6">
+      const handleCommentChange = (index, value) => {
+        const newComments = [...form.comments];
+        newComments[index].text = value;
+        setForm(prev => ({ ...prev, comments: newComments }));
+      };
+
+      const addCommentField = () => {
+        setForm(prev => ({ ...prev, comments: [...prev.comments, { text: '' }] }));
+      };
+
+      const removeCommentField = (index) => {
+        const newComments = form.comments.filter((_, i) => i !== index);
+        setForm(prev => ({ ...prev, comments: newComments.length ? newComments : [{ text: '' }] }));
+      };
+
+      const applyBatchComments = () => {
+        const lines = batchComments.split('\n').map(l => l.trim()).filter(l => l);
+        if (lines.length > 0) {
+          const newComments = lines.map(l => ({ text: l }));
+          const currentFiltered = form.comments.filter(c => c.text.trim());
+          setForm(prev => ({ ...prev, comments: [...currentFiltered, ...newComments] }));
+        }
+        setBatchComments('');
+        setShowBatchInput(false);
+      };
+
+      const addProject = () => {
+        const name = newProjectName.trim();
+        if (name && !projects[name]) {
+          setProjects(prev => ({ ...prev, [name]: ['預設子資料夾'] }));
+          setForm(prev => ({ ...prev, project: name, phase: '預設子資料夾' }));
+          setNewProjectName('');
+        }
+      };
+
+      const deleteProject = (projectName) => {
+        if (projectName === '預設專案') {
+          showDialog('alert', '操作錯誤', '「預設專案」為系統預設，無法刪除！');
+          return;
+        }
         
-        {/* 左側：表單編輯區 */}
-        <div className="flex-1 flex flex-col gap-4">
-          <div className="bg-white rounded-xl shadow-md p-4 md:p-6 border border-slate-200">
-            <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
-              <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                <Edit className="text-blue-500" />
-                {form.id ? '編輯文案與企劃' : '新增口碑文案'}
-              </h2>
-              {form.id && (
-                <button onClick={handleClear} className="text-sm flex items-center gap-1 text-slate-500 hover:text-blue-600 transition-colors">
-                  <Plus size={16} /> 建立新文案
-                </button>
-              )}
-            </div>
+        showDialog('confirm', '刪除專案確認', `確定要刪除主專案「${projectName}」嗎？\n這將會同步刪除該專案底下的所有文案！`, () => {
+          const newProjects = { ...projects };
+          delete newProjects[projectName];
+          setProjects(newProjects);
+          
+          setPosts(prev => prev.filter(p => p.project !== projectName));
+          
+          if (form.project === projectName) {
+            setForm(prev => ({ ...prev, project: '預設專案', phase: projects['預設專案'][0] }));
+          }
+          if (selectedProject === projectName) {
+            setSelectedProject('全部');
+            setSelectedPhase('全部');
+          }
+        });
+      };
 
-            {/* 表單網格區 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              
-              {/* 主專案資料夾選擇 */}
-              <div className="flex flex-col gap-1.5 lg:col-span-3">
-                <label className="text-sm font-semibold text-slate-600 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5"><FolderOpen size={16} className="text-slate-400" /> 主專案資料夾</span>
-                  <button onClick={() => deleteProject(form.project)} className="text-xs text-red-500 hover:text-red-600 font-medium">
-                    <Trash2 size={12} className="inline mr-1" />刪除目前專案
-                  </button>
-                </label>
-                <div className="flex gap-2">
-                  <select 
-                    name="project" value={form.project} onChange={handleProjectChange}
-                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-800"
+      const addPhase = () => {
+        const phase = newPhaseName.trim();
+        if (phase && form.project && !projects[form.project].includes(phase)) {
+          setProjects(prev => ({
+            ...prev,
+            [form.project]: [...prev[form.project], phase]
+          }));
+          setForm(prev => ({ ...prev, phase: phase }));
+          setNewPhaseName('');
+        }
+      };
+
+      const deletePhase = (projectName, phaseName) => {
+        if (projectName === '預設專案' && phaseName === '預設子資料夾') {
+          showDialog('alert', '操作錯誤', '「預設子資料夾」無法刪除！');
+          return;
+        }
+        if (projects[projectName].length <= 1) {
+          showDialog('alert', '操作錯誤', '每個主專案至少需要保留一個子資料夾！');
+          return;
+        }
+
+        showDialog('confirm', '刪除階段確認', `確定要刪除「${projectName} - ${phaseName}」嗎？\n內部所有相關聯的文案都會被刪除！`, () => {
+          setProjects(prev => ({
+            ...prev,
+            [projectName]: prev[projectName].filter(p => p !== phaseName)
+          }));
+          
+          setPosts(prev => prev.filter(p => !(p.project === projectName && p.phase === phaseName)));
+          
+          if (form.project === projectName && form.phase === phaseName) {
+            setForm(prev => ({ ...prev, phase: projects[projectName].filter(p => p !== phaseName)[0] }));
+          }
+          if (selectedProject === projectName && selectedPhase === phaseName) {
+            setSelectedPhase('全部');
+          }
+        });
+      };
+
+      const calculatePureLength = (str) => {
+        if (!str) return 0;
+        return str.replace(/[\p{P}\p{S}\s]/gu, '').length;
+      };
+
+      const pureCount = calculatePureLength(form.content);
+
+      const handleSave = () => {
+        if (!form.content.trim()) {
+          showDialog('alert', '無法儲存', '文案內容不能為空！');
+          return;
+        }
+        
+        const cleanComments = form.comments.filter(c => c.text.trim() !== '');
+        const postData = { ...form, comments: cleanComments.length ? cleanComments : [{ text: '' }] };
+
+        if (form.id) {
+          setPosts(posts.map(p => p.id === form.id ? postData : p));
+        } else {
+          const newPost = { ...postData, id: Date.now() };
+          setPosts([newPost, ...posts]);
+        }
+        handleClear();
+      };
+
+      const handleClear = () => {
+        const defaultProj = selectedProject === '全部' ? '預設專案' : selectedProject;
+        const defaultPhase = selectedPhase === '全部' ? projects[defaultProj][0] : selectedPhase;
+
+        setForm({
+          id: null,
+          project: defaultProj,
+          phase: defaultPhase,
+          month: '',
+          publishDate: '',
+          articleNo: '',
+          title: '',
+          platform: 'Dcard',
+          board: '',
+          content: '',
+          plan: '',
+          comments: [{ text: '' }]
+        });
+        setTypos(null);
+      };
+
+      const handleEdit = (post) => {
+        setForm(post);
+        setTypos(null);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      };
+
+      const handleDelete = (id) => {
+        showDialog('confirm', '刪除文案', '確定要刪除這篇文案嗎？', () => {
+          setPosts(posts.filter(p => p.id !== id));
+          if (form.id === id) handleClear();
+        });
+      };
+
+      const fetchWithBackoff = async (url, options, maxRetries = 5) => {
+        const delays = [1000, 2000, 4000, 8000, 16000];
+        for (let i = 0; i < maxRetries; i++) {
+          try {
+            const response = await fetch(url, options);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return await response.json();
+          } catch (error) {
+            if (i === maxRetries - 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, delays[i]));
+          }
+        }
+      };
+
+      const runTypoCheck = async () => {
+        if (pureCount === 0) return;
+        setIsChecking(true);
+        setTypos(null);
+        setCheckError('');
+
+        try {
+          const apiKey = ""; // 使用你自有的 API KEY 或環境變數
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+          const prompt = `請檢查以下文字的錯別字與不順暢處。回傳JSON格式: {"typos": [{"wrong": "錯字", "correct": "正字", "reason": "原因"}]}。若無錯字回傳 {"typos": []}。\n文字:\n${form.content}`;
+
+          const data = await fetchWithBackoff(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { responseMimeType: "application/json" }
+            })
+          });
+
+          const parsed = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text || '{"typos":[]}');
+          setTypos(parsed.typos || []);
+        } catch (error) {
+          setCheckError("AI 檢查暫時無法連線，請稍後再試。");
+        } finally {
+          setIsChecking(false);
+        }
+      };
+
+      const applyFix = (wrong, correct, index) => {
+        setForm(prev => ({ ...prev, content: prev.content.replace(wrong, correct) }));
+        setTypos(prevTypos => prevTypos.filter((_, i) => i !== index));
+      };
+
+      const generatePlan = async () => {
+        if (!form.content.trim()) {
+          showDialog('alert', '生成失敗', '請先填寫文案內容，AI 才能幫你生成企劃！');
+          return;
+        }
+        
+        setIsGeneratingPlan(true);
+
+        try {
+          const apiKey = ""; // 使用你自有的 API KEY 或環境變數
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+          const promptText = `
+            請你閱讀以下的「口碑文案」與「預設留言」，幫我整理成「客戶看得懂的新版寫作方向」。
+            請嚴格遵守以下格式，不需要額外的問候語，字數請精簡在100字以內。每點內容簡明扼要，但要有完整邏輯。
+
+            格式為：
+            1. 主文方向
+            a.
+            b.
+            c.
+            
+            2. 回文方向
+            >>
+
+            文案標題：${form.title}
+            文案內容：
+            ${form.content}
+            
+            預設留言/回文：
+            ${form.comments.map((c, i) => `樓層${i+1}: ${c.text}`).join('\n')}
+          `;
+
+          const data = await fetchWithBackoff(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: promptText }] }],
+            })
+          });
+
+          const generatedPlan = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          setForm(prev => ({ ...prev, plan: generatedPlan.trim() }));
+          
+        } catch (error) {
+          showDialog('alert', '生成失敗', 'AI 生成企劃失敗，請稍後再試。');
+          console.error(error);
+        } finally {
+          setIsGeneratingPlan(false);
+        }
+      };
+
+      const CustomDialog = () => {
+        if (!dialog.isOpen) return null;
+        return (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden transform scale-100 transition-transform">
+              <div className={`p-4 border-b ${dialog.type === 'confirm' ? 'bg-red-50 border-red-100' : 'bg-blue-50 border-blue-100'} flex items-center gap-3`}>
+                {dialog.type === 'confirm' ? <AlertTriangle className="text-red-600" /> : <AlertCircle className="text-blue-600" />}
+                <h3 className="text-lg font-bold text-slate-800">{dialog.title}</h3>
+              </div>
+              <div className="p-5">
+                <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{dialog.message}</p>
+              </div>
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                {dialog.type === 'confirm' && (
+                  <button
+                    onClick={closeDialog}
+                    className="px-5 py-2 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors"
                   >
-                    {Object.keys(projects).map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                  <input
-                    type="text" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)}
-                    placeholder="新專案名稱"
-                    className="w-1/3 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button onClick={addProject} className="px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-semibold text-sm transition-colors whitespace-nowrap">
-                    新增專案
+                    取消
                   </button>
-                </div>
-              </div>
-
-              {/* 子資料夾 (階段) 選擇 */}
-              <div className="flex flex-col gap-1.5 lg:col-span-3">
-                <label className="text-sm font-semibold text-slate-600 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5"><Folder size={16} className="text-slate-400" /> 子資料夾 (執行階段/月份)</span>
-                  <button onClick={() => deletePhase(form.project, form.phase)} className="text-xs text-red-500 hover:text-red-600 font-medium">
-                    <Trash2 size={12} className="inline mr-1" />刪除此階段
-                  </button>
-                </label>
-                <div className="flex gap-2">
-                  <select 
-                    name="phase" value={form.phase} onChange={handleChange}
-                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 font-bold text-purple-700"
-                  >
-                    {projects[form.project]?.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                  <input
-                    type="text" value={newPhaseName} onChange={(e) => setNewPhaseName(e.target.value)}
-                    placeholder="例如: 第一階段 6月"
-                    className="w-1/3 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                  <button onClick={addPhase} className="px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-semibold text-sm transition-colors whitespace-nowrap">
-                    新增階段
-                  </button>
-                </div>
-              </div>
-
-              {/* 其他基礎欄位 */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-semibold text-slate-600">發布月份 (僅填數字)</label>
-                <input
-                  type="number" min="1" max="12" name="month" placeholder="例: 7"
-                  value={form.month} onChange={handleChange}
-                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-semibold text-slate-600">預計發布日期</label>
-                <input
-                  type="date" name="publishDate"
-                  value={form.publishDate} onChange={handleChange}
-                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-semibold text-slate-600">文章編號</label>
-                <input
-                  type="text" name="articleNo" placeholder="例: P-001"
-                  value={form.articleNo} onChange={handleChange}
-                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-semibold text-slate-600">發布平台</label>
-                <select 
-                  name="platform" value={form.platform} onChange={handleChange}
-                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
-                >
-                  <option value="Dcard">Dcard</option>
-                  <option value="Mobile01">Mobile01</option>
-                  <option value="Threads">Threads</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1.5 md:col-span-2">
-                <label className="text-sm font-semibold text-slate-600">發布版別 / 討論區</label>
-                <input
-                  type="text" name="board" placeholder="例: 美妝版、汽車討論區"
-                  value={form.board} onChange={handleChange}
-                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* 標題與內文 */}
-            <div className="flex flex-col gap-3 mb-4">
-              <input
-                type="text" name="title" placeholder="文章標題..."
-                value={form.title} onChange={handleChange}
-                className="w-full px-4 py-3 text-lg font-bold bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <textarea
-                ref={textareaRef} name="content" placeholder="請在此輸入貼文內容..."
-                value={form.content} onChange={handleChange}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none min-h-[150px] leading-relaxed custom-scrollbar text-[15px]"
-              />
-            </div>
-
-            {/* 字數統計與校正按鈕 */}
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-8 bg-slate-50 p-3 rounded-lg border border-slate-100">
-              <span className={`text-sm font-bold px-3 py-1.5 rounded-md ${pureCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-500'}`}>
-                純字數：{pureCount} 字
-              </span>
-              
-              <button 
-                onClick={runTypoCheck} disabled={isChecking || pureCount === 0}
-                className={`flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-lg transition-all ${
-                  pureCount === 0 ? 'text-slate-400 bg-slate-200 cursor-not-allowed' :
-                  isChecking ? 'text-purple-700 bg-purple-100' : 'text-white bg-purple-600 hover:bg-purple-700 shadow-sm'
-                }`}
-              >
-                {isChecking ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                AI 校正檢查
-              </button>
-            </div>
-
-            {checkError && <div className="mb-4 text-red-600 text-sm">{checkError}</div>}
-            {typos !== null && !isChecking && (
-              <div className="mb-6 bg-slate-50 p-4 border rounded-lg">
-                {typos.length === 0 ? <div className="text-green-600 font-bold">無錯字。</div> : 
-                  typos.map((t, idx) => (
-                    <div key={idx} className="flex justify-between bg-white p-2 mb-2 rounded border text-sm">
-                      <div><span className="line-through text-red-500">{t.wrong}</span> → <span className="text-green-600 font-bold">{t.correct}</span> ({t.reason})</div>
-                      <button onClick={() => applyFix(t.wrong, t.correct, idx)} className="text-blue-600 font-bold">套用</button>
-                    </div>
-                  ))
-                }
-              </div>
-            )}
-
-            <div className="mb-8 border-t border-slate-200 pt-6">
-              <div className="flex items-center justify-between mb-3">
-                <label className="text-base font-bold text-slate-700 flex items-center gap-2">
-                  <MessageCircle size={18} className="text-green-500" /> 模擬回覆/留言設計
-                </label>
-                <div className="flex gap-2">
-                  <button onClick={() => setShowBatchInput(!showBatchInput)} className="text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1 rounded-full font-bold transition-colors flex items-center gap-1">
-                    <Type size={14} /> {showBatchInput ? '取消批量' : '批量新增'}
-                  </button>
-                  <button onClick={addCommentField} className="text-sm bg-green-50 text-green-700 hover:bg-green-100 px-3 py-1 rounded-full font-bold transition-colors">
-                    + 新增一格
-                  </button>
-                </div>
-              </div>
-
-              {/* 批量輸入區 */}
-              {showBatchInput && (
-                <div className="mb-4 bg-blue-50/50 p-4 rounded-lg border border-blue-100 shadow-inner">
-                  <label className="text-xs font-bold text-blue-700 mb-2 block">請貼上多行留言 (每一行將自動轉換為一則獨立留言)</label>
-                  <textarea
-                    value={batchComments}
-                    onChange={(e) => setBatchComments(e.target.value)}
-                    placeholder="第一樓留言...&#10;第二樓留言...&#10;第三樓留言..."
-                    className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] resize-y text-sm custom-scrollbar mb-3"
-                  />
-                  <div className="flex justify-end">
-                    <button onClick={applyBatchComments} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm flex items-center gap-1.5">
-                      <Check size={16} /> 確認批量套用
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              <div className="space-y-3">
-                {form.comments.map((comment, index) => (
-                  <div key={index} className="flex items-start gap-2">
-                    <div className="bg-slate-100 px-3 py-2 rounded-l-lg border border-r-0 border-slate-200 font-bold text-slate-500 text-sm whitespace-nowrap">
-                      樓層 {index + 1}
-                    </div>
-                    <textarea
-                      value={comment.text}
-                      onChange={(e) => handleCommentChange(index, e.target.value)}
-                      placeholder={`請輸入第 ${index + 1} 則留言內容...`}
-                      className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-green-500 min-h-[42px] h-[42px] resize-y text-sm custom-scrollbar"
-                    />
-                    <button 
-                      onClick={() => removeCommentField(index)}
-                      className="p-2 text-slate-400 hover:text-red-500 mt-1"
-                    >
-                      <X size={20} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 企劃生成與編輯區塊 */}
-            <div className="mb-6 border-t border-slate-200 pt-6 bg-amber-50/30 p-4 rounded-xl border-dashed">
-              <div className="flex items-center justify-between mb-3">
-                <label className="text-base font-bold text-amber-800 flex items-center gap-2">
-                  <Sparkles size={18} className="text-amber-500" /> 企劃方向 (客戶用)
-                </label>
-                <button 
-                  onClick={generatePlan}
-                  disabled={isGeneratingPlan || !form.content.trim()}
-                  className={`flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-full transition-colors ${
-                    isGeneratingPlan 
-                      ? 'bg-amber-100 text-amber-600 cursor-wait' 
-                      : !form.content.trim() 
-                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                        : 'bg-amber-100 hover:bg-amber-200 text-amber-700 shadow-sm'
+                )}
+                <button
+                  onClick={() => {
+                    if (dialog.onConfirm) dialog.onConfirm();
+                    closeDialog();
+                  }}
+                  className={`px-5 py-2 rounded-xl font-bold text-white shadow-sm transition-colors ${
+                    dialog.type === 'confirm' ? 'bg-red-600 hover:bg-red-700 shadow-red-600/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
                   }`}
                 >
-                  {isGeneratingPlan ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                  {isGeneratingPlan ? 'AI 生成企劃中...' : 'AI 自動萃取企劃'}
+                  {dialog.type === 'confirm' ? '確定刪除' : '我知道了'}
                 </button>
               </div>
-              
-              <p className="text-xs text-amber-700/70 mb-2 font-medium">
-                點擊按鈕，AI 會根據上方的文案與留言，自動生成 100 字內的寫作方向。生成後可直接在下方手動編輯修改。
-              </p>
-
-              <textarea
-                ref={planTextareaRef}
-                name="plan"
-                value={form.plan}
-                onChange={handleChange}
-                placeholder={`1. 主文方向\na.\nb.\nc.\n\n2. 回文方向\n>>`}
-                className="w-full px-4 py-3 bg-white border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none min-h-[100px] text-sm text-slate-700 leading-relaxed custom-scrollbar font-mono"
-              />
             </div>
-
-            {/* 底部操作按鈕 */}
-            <div className="flex gap-4 border-t border-slate-200 pt-6">
-              <button 
-                onClick={() => setShowPreview(true)}
-                disabled={pureCount === 0}
-                className="flex-1 py-3 rounded-xl font-bold text-lg flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors border border-indigo-200"
-              >
-                <Eye size={20} /> 發布預覽
-              </button>
-              
-              <button 
-                onClick={handleSave}
-                disabled={pureCount === 0}
-                className="flex-1 py-3 rounded-xl font-bold text-lg flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all"
-              >
-                <Save size={20} /> {form.id ? '儲存修改' : '儲存至資料夾'}
-              </button>
-            </div>
-
           </div>
-        </div>
+        );
+      };
 
-        {/* 右側：資料夾與文案庫 */}
-        <div className="xl:w-[350px] flex flex-col gap-4">
-          <div className="bg-slate-800 rounded-xl shadow-md flex flex-col h-[85vh] overflow-hidden">
-            
-            <div className="flex flex-col flex-shrink-0 bg-slate-900 border-b border-slate-700">
-              {/* 第一層：主專案 Tabs (改用 div 以避免按鈕巢狀結構出錯) */}
-              <div className="flex overflow-x-auto custom-scrollbar p-2 gap-1 border-b border-slate-800">
-                <div 
-                  onClick={() => { setSelectedProject('全部'); setSelectedPhase('全部'); }}
-                  className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${selectedProject === '全部' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
-                >
-                  全部專案
-                </div>
-                {Object.keys(projects).map(projName => (
-                  <div 
-                    key={projName}
-                    onClick={() => { setSelectedProject(projName); setSelectedPhase('全部'); }}
-                    className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap flex items-center gap-1.5 transition-colors ${selectedProject === projName ? 'bg-slate-700 text-white border border-slate-600' : 'text-slate-400 hover:bg-slate-800'}`}
-                  >
-                    <Folder size={14} className={selectedProject === projName ? 'text-blue-400' : ''} /> {projName}
-                    {projName !== '預設專案' && (
-                      <div 
-                        onClick={(e) => { e.stopPropagation(); deleteProject(projName); }}
-                        className={`ml-1 p-0.5 rounded-full transition-colors cursor-pointer ${selectedProject === projName ? 'text-slate-300 hover:text-red-400 hover:bg-slate-600' : 'text-slate-500 hover:text-red-400 hover:bg-slate-700'}`}
-                        title="刪除此專案"
-                      >
-                        <X size={14} />
+      const PreviewModal = () => {
+        if (!showPreview) return null;
+
+        const renderPlatformUI = () => {
+          if (form.platform === 'Dcard') {
+            return (
+              <div className="bg-[#006aa6] min-h-full p-4 font-sans selection:bg-blue-300">
+                <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md overflow-hidden mt-4">
+                  <div className="p-5 pb-2">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 bg-[#006aa6] rounded-full flex items-center justify-center text-white font-bold text-lg">
+                        {form.board ? form.board.charAt(0) : '匿'}
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* 第二層：子資料夾(階段) Tabs */}
-              {selectedProject !== '全部' && (
-                <div className="flex overflow-x-auto custom-scrollbar p-2 gap-1 bg-slate-800/50">
-                  <div 
-                    onClick={() => setSelectedPhase('全部')}
-                    className={`cursor-pointer px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${selectedPhase === '全部' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}
-                  >
-                    全部階段
-                  </div>
-                  {projects[selectedProject]?.map(phaseName => (
-                    <div 
-                      key={phaseName}
-                      onClick={() => setSelectedPhase(phaseName)}
-                      className={`cursor-pointer px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1 transition-colors ${selectedPhase === phaseName ? 'bg-purple-900/60 text-purple-200 border border-purple-500/50' : 'text-slate-400 hover:bg-slate-700'}`}
-                    >
-                      {phaseName}
-                      {!(selectedProject === '預設專案' && phaseName === '預設子資料夾') && projects[selectedProject].length > 1 && (
-                        <div 
-                          onClick={(e) => { e.stopPropagation(); deletePhase(selectedProject, phaseName); }}
-                          className={`ml-1 p-0.5 rounded-full transition-colors cursor-pointer ${selectedPhase === phaseName ? 'text-purple-300 hover:text-red-400 hover:bg-purple-800' : 'text-slate-500 hover:text-red-400 hover:bg-slate-600'}`}
-                          title="刪除此階段"
-                        >
-                          <X size={12} />
-                        </div>
-                      )}
+                      <div>
+                        <p className="font-bold text-[#333] text-[15px]">{form.board || '匿名版'} • 匿名</p>
+                        <p className="text-gray-400 text-xs">{form.publishDate ? form.publishDate : '剛剛'}</p>
+                      </div>
                     </div>
-                  ))}
+                    <h1 className="text-2xl font-bold text-black mb-4 leading-snug">{form.title || '（無標題）'}</h1>
+                    <div className="text-[15px] text-[#333] leading-relaxed whitespace-pre-wrap break-words">
+                      {form.content}
+                    </div>
+                  </div>
+                  <div className="flex items-center px-5 py-3 border-t border-gray-100 mt-6 gap-6 text-gray-500">
+                    <div className="flex items-center gap-1.5"><ThumbsUp size={20} className="text-pink-500" /> <span>0</span></div>
+                    <div className="flex items-center gap-1.5"><MessageCircle size={20} /> <span>{form.comments.filter(c=>c.text).length}</span></div>
+                    <div className="flex items-center gap-1.5"><Bookmark size={20} /> <span>收藏</span></div>
+                  </div>
+                  <div className="bg-gray-50 p-5">
+                    <div className="text-sm text-gray-500 mb-4">共 {form.comments.filter(c=>c.text).length} 則留言</div>
+                    {form.comments.filter(c => c.text).map((comment, idx) => (
+                      <div key={idx} className="flex gap-3 mb-4">
+                        <div className="w-8 h-8 rounded-full bg-gray-300 flex-shrink-0"></div>
+                        <div className="bg-white p-3 rounded-2xl rounded-tl-sm shadow-sm flex-1 text-[14px]">
+                          <span className="font-bold text-gray-700 block mb-1">B{idx + 1}</span>
+                          {comment.text}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            );
+          }
 
-            <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
-              {posts.filter(p => (selectedProject === '全部' || p.project === selectedProject) && (selectedPhase === '全部' || p.phase === selectedPhase)).length === 0 ? (
-                <div className="text-center text-slate-500 py-10 mt-10">
-                  <FolderOpen size={40} className="mx-auto mb-2 opacity-50" />
-                  <p>此分類目前沒有文案</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {posts.filter(p => (selectedProject === '全部' || p.project === selectedProject) && (selectedPhase === '全部' || p.phase === selectedPhase)).map(post => (
-                    <div key={post.id} className="bg-slate-700 border border-slate-600 rounded-lg p-3 hover:border-blue-500 transition-colors cursor-pointer" onClick={() => handleEdit(post)}>
-                      <div className="flex justify-between items-start mb-1">
-                        <span className={`text-[11px] px-2 py-0.5 rounded font-bold ${
-                          post.platform === 'Dcard' ? 'bg-blue-900 text-blue-200' : 
-                          post.platform === 'Mobile01' ? 'bg-green-900 text-green-200' : 
-                          'bg-gray-900 text-gray-200'
-                        }`}>
-                          {post.platform}
-                        </span>
-                        <div onClick={(e) => { e.stopPropagation(); handleDelete(post.id); }} className="text-slate-400 hover:text-red-400 p-1 cursor-pointer"><Trash2 size={14} /></div>
+          if (form.platform === 'Threads') {
+            return (
+              <div className="bg-[#101010] min-h-full p-4 font-sans text-white flex justify-center">
+                <div className="w-full max-w-[500px] border-b border-gray-800 pb-4 mt-8">
+                  <div className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-500 to-orange-500 z-10"></div>
+                      <div className="w-0.5 bg-gray-800 h-full mt-2"></div>
+                    </div>
+                    <div className="flex-1 pb-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-[15px]">username</span>
+                        <div className="flex items-center gap-2 text-gray-500">
+                          <span className="text-sm">{form.publishDate ? form.publishDate : '1m'}</span>
+                          <MoreHorizontal size={16} />
+                        </div>
                       </div>
-                      
-                      <h4 className="font-bold text-white text-sm mb-1 line-clamp-1">{post.title || '無標題'}</h4>
-                      
-                      {/* 在卡片上標示屬於哪個專案與階段 */}
-                      <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-slate-300 mb-2">
-                        {post.project && <span className="bg-slate-600 px-1.5 py-0.5 rounded text-blue-300">{post.project}</span>}
-                        {post.phase && <span className="bg-slate-600 px-1.5 py-0.5 rounded text-purple-300">{post.phase}</span>}
-                      </div>
-
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400 mb-2">
-                        {post.publishDate && <span>發布: {post.publishDate}</span>}
-                        {post.board && <span>版別: {post.board}</span>}
-                      </div>
-                      
-                      <p className="text-slate-300 text-xs line-clamp-2 opacity-80 bg-slate-800 p-2 rounded mb-2">
-                        {post.content}
+                      {form.title && <p className="font-bold mt-1 text-[15px]">{form.title}</p>}
+                      <p className="text-[15px] mt-1 whitespace-pre-wrap leading-relaxed">
+                        {form.content}
                       </p>
                       
-                      {post.plan && (
-                         <div className="text-[10px] text-amber-400 bg-amber-900/30 px-2 py-1 rounded inline-flex items-center gap-1">
-                           <Sparkles size={10} /> 已包含企劃
-                         </div>
-                      )}
+                      <div className="flex gap-4 mt-4 text-gray-800">
+                        <ThumbsUp size={20} className="hover:text-gray-500 cursor-pointer" />
+                        <MessageCircle size={20} className="hover:text-gray-500 cursor-pointer" />
+                        <Share2 size={20} className="hover:text-gray-500 cursor-pointer" />
+                      </div>
+                    </div>
+                  </div>
+                  {form.comments.filter(c => c.text).map((comment, idx) => (
+                    <div key={idx} className="flex gap-3 mt-4 relative">
+                      <div className="flex flex-col items-center">
+                        <div className="w-8 h-8 rounded-full bg-gray-600 z-10"></div>
+                        {idx !== form.comments.filter(c=>c.text).length -1 && <div className="w-0.5 bg-gray-800 h-full mt-2"></div>}
+                      </div>
+                      <div className="flex-1 pb-2 border-b border-gray-800/50">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-[14px]">reply_user_{idx+1}</span>
+                          <span className="text-gray-500 text-sm">now</span>
+                        </div>
+                        <p className="text-[14px] mt-1 whitespace-pre-wrap">{comment.text}</p>
+                        <div className="flex gap-4 mt-3 text-gray-800">
+                          <ThumbsUp size={16} />
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
-              )}
+              </div>
+            );
+          }
+
+          return (
+            <div className="bg-[#f0f0f0] min-h-full p-4 font-sans">
+              <div className="max-w-4xl mx-auto bg-white border-t-4 border-[#86c12c] shadow-sm mt-4">
+                 <div className="bg-[#f9f9f9] p-4 border-b border-gray-200">
+                    <div className="text-[#86c12c] font-bold text-lg mb-2">首頁 &gt; {form.board || '討論區'}</div>
+                    <h1 className="text-[22px] font-bold text-[#333] mb-3">{form.title || '（無標題）'}</h1>
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <span className="text-blue-600 font-bold">作者_01</span>
+                      <span>{form.publishDate ? form.publishDate : '2023-XX-XX 12:00'}</span>
+                      <span>100 觀看</span>
+                      <span>{form.comments.filter(c=>c.text).length} 留言</span>
+                    </div>
+                 </div>
+                 
+                 <div className="p-6">
+                    <div className="text-[16px] text-[#333] leading-8 whitespace-pre-wrap">
+                      {form.content}
+                    </div>
+                 </div>
+
+                 <div className="bg-gray-100 border-t border-gray-200">
+                    {form.comments.filter(c => c.text).map((comment, idx) => (
+                      <div key={idx} className="flex bg-white mb-2 border border-gray-200">
+                        <div className="w-[120px] bg-[#f9f9f9] p-3 border-r border-gray-200 flex flex-col items-center">
+                           <div className="w-12 h-12 bg-gray-300 mb-2"></div>
+                           <span className="text-blue-600 font-bold text-xs">User_{idx+1}</span>
+                        </div>
+                        <div className="flex-1 p-4 relative">
+                           <div className="absolute top-2 right-4 text-xs text-gray-400">#{idx + 2}</div>
+                           <div className="text-[15px] leading-7 whitespace-pre-wrap">{comment.text}</div>
+                        </div>
+                      </div>
+                    ))}
+                 </div>
+              </div>
+            </div>
+          );
+        };
+
+        return (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-5xl h-[90vh] rounded-xl overflow-hidden flex flex-col shadow-2xl">
+              <div className="flex justify-between items-center p-4 border-b bg-gray-50">
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  <Eye className="text-blue-500" /> 
+                  模擬發布預覽 ({form.platform})
+                </h2>
+                <button onClick={() => setShowPreview(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto relative custom-scrollbar">
+                {renderPlatformUI()}
+              </div>
             </div>
           </div>
-        </div>
+        );
+      };
 
-      </div>
-    </div>
-  );
-}
+      return (
+        <div className="min-h-screen p-2 md:p-6 font-sans text-slate-800">
+          <CustomDialog />
+          <div className="max-w-7xl mx-auto flex flex-col xl:flex-row gap-6">
+            
+            {/* 左側：表單編輯區 */}
+            <div className="flex-1 flex flex-col gap-4">
+              <div className="bg-white rounded-xl shadow-md p-4 md:p-6 border border-slate-200">
+                <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+                  <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    <Edit className="text-blue-500" />
+                    {form.id ? '編輯文案與企劃' : '新增口碑文案'}
+                  </h2>
+                  {form.id && (
+                    <button onClick={handleClear} className="text-sm flex items-center gap-1 text-slate-500 hover:text-blue-600 transition-colors">
+                      <Plus size={16} /> 建立新文案
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                  
+                  <div className="flex flex-col gap-1.5 lg:col-span-3">
+                    <label className="text-sm font-semibold text-slate-600 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5"><FolderOpen size={16} className="text-slate-400" /> 主專案資料夾</span>
+                      <button onClick={() => deleteProject(form.project)} className="text-xs text-red-500 hover:text-red-600 font-medium">
+                        <Trash2 size={12} className="inline mr-1" />刪除目前專案
+                      </button>
+                    </label>
+                    <div className="flex gap-2">
+                      <select 
+                        name="project" value={form.project} onChange={handleProjectChange}
+                        className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-800"
+                      >
+                        {Object.keys(projects).map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                      <input
+                        type="text" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)}
+                        placeholder="新專案名稱"
+                        className="w-1/3 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button onClick={addProject} className="px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-semibold text-sm transition-colors whitespace-nowrap">
+                        新增專案
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 lg:col-span-3">
+                    <label className="text-sm font-semibold text-slate-600 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5"><Folder size={16} className="text-slate-400" /> 子資料夾 (執行階段/月份)</span>
+                      <button onClick={() => deletePhase(form.project, form.phase)} className="text-xs text-red-500 hover:text-red-600 font-medium">
+                        <Trash2 size={12} className="inline mr-1" />刪除此階段
+                      </button>
+                    </label>
+                    <div className="flex gap-2">
+                      <select 
+                        name="phase" value={form.phase} onChange={handleChange}
+                        className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 font-bold text-purple-700"
+                      >
+                        {projects[form.project]?.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                      <input
+                        type="text" value={newPhaseName} onChange={(e) => setNewPhaseName(e.target.value)}
+                        placeholder="例如: 第一階段 6月"
+                        className="w-1/3 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                      <button onClick={addPhase} className="px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-semibold text-sm transition-colors whitespace-nowrap">
+                        新增階段
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-semibold text-slate-600">發布月份 (僅填數字)</label>
+                    <input
+                      type="number" min="1" max="12" name="month" placeholder="例: 7"
+                      value={form.month} onChange={handleChange}
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-semibold text-slate-600">預計發布日期</label>
+                    <input
+                      type="date" name="publishDate"
+                      value={form.publishDate} onChange={handleChange}
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-semibold text-slate-600">文章編號</label>
+                    <input
+                      type="text" name="articleNo" placeholder="例: P-001"
+                      value={form.articleNo} onChange={handleChange}
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-semibold text-slate-600">發布平台</label>
+                    <select 
+                      name="platform" value={form.platform} onChange={handleChange}
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+                    >
+                      <option value="Dcard">Dcard</option>
+                      <option value="Mobile01">Mobile01</option>
+                      <option value="Threads">Threads</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 md:col-span-2">
+                    <label className="text-sm font-semibold text-slate-600">發布版別 / 討論區</label>
+                    <input
+                      type="text" name="board" placeholder="例: 美妝版、汽車討論區"
+                      value={form.board} onChange={handleChange}
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 mb-4">
+                  <input
+                    type="text" name="title" placeholder="文章標題..."
+                    value={form.title} onChange={handleChange}
+                    className="w-full px-4 py-3 text-lg font-bold bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <textarea
+                    ref={textareaRef} name="content" placeholder="請在此輸入貼文內容..."
+                    value={form.content} onChange={handleChange}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none min-h-[150px] leading-relaxed custom-scrollbar text-[15px]"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-8 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                  <span className={`text-sm font-bold px-3 py-1.5 rounded-md ${pureCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-500'}`}>
+                    純字數：{pureCount} 字
+                  </span>
+                  
+                  <button 
+                    onClick={runTypoCheck} disabled={isChecking || pureCount === 0}
+                    className={`flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-lg transition-all ${
+                      pureCount === 0 ? 'text-slate-400 bg-slate-200 cursor-not-allowed' :
+                      isChecking ? 'text-purple-700 bg-purple-100' : 'text-white bg-purple-600 hover:bg-purple-700 shadow-sm'
+                    }`}
+                  >
+                    {isChecking ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                    AI 校正檢查
+                  </button>
+                </div>
+
+                {checkError && <div className="mb-4 text-red-600 text-sm">{checkError}</div>}
+                {typos !== null && !isChecking && (
+                  <div className="mb-6 bg-slate-50 p-4 border rounded-lg">
+                    {typos.length === 0 ? <div className="text-green-600 font-bold">無錯字。</div> : 
+                      typos.map((t, idx) => (
+                        <div key={idx} className="flex justify-between bg-white p-2 mb-2 rounded border text-sm">
+                          <div><span className="line-through text-red-500">{t.wrong}</span> → <span className="text-green-600 font-bold">{t.correct}</span> ({t.reason})</div>
+                          <button onClick={() => applyFix(t.wrong, t.correct, idx)} className="text-blue-600 font-bold">套用</button>
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
+
+                <div className="mb-8 border-t border-slate-200 pt-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-base font-bold text-slate-700 flex items-center gap-2">
+                      <MessageCircle size={18} className="text-green-500" /> 模擬回覆/留言設計
+                    </label>
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowBatchInput(!showBatchInput)} className="text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1 rounded-full font-bold transition-colors flex items-center gap-1">
+                        <Type size={14} /> {showBatchInput ? '取消批量' : '批量新增'}
+                      </button>
+                      <button onClick={addCommentField} className="text-sm bg-green-50 text-green-700 hover:bg-green-100 px-3 py-1 rounded-full font-bold transition-colors">
+                        + 新增一格
+                      </button>
+                    </div>
+                  </div>
+
+                  {showBatchInput && (
+                    <div className="mb-4 bg-blue-50/50 p-4 rounded-lg border border-blue-100 shadow-inner">
+                      <label className="text-xs font-bold text-blue-700 mb-2 block">請貼上多行留言 (每一行將自動轉換為一則獨立留言)</label>
+                      <textarea
+                        value={batchComments}
+                        onChange={(e) => setBatchComments(e.target.value)}
+                        placeholder="第一樓留言...&#10;第二樓留言...&#10;第三樓留言..."
+                        className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] resize-y text-sm custom-scrollbar mb-3"
+                      />
+                      <div className="flex justify-end">
+                        <button onClick={applyBatchComments} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm flex items-center gap-1.5">
+                          <Check size={16} /> 確認批量套用
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-3">
+                    {form.comments.map((comment, index) => (
+                      <div key={index} className="flex items-start gap-2">
+                        <div className="bg-slate-100 px-3 py-2 rounded-l-lg border border-r-0 border-slate-200 font-bold text-slate-500 text-sm whitespace-nowrap">
+                          樓層 {index + 1}
+                        </div>
+                        <textarea
+                          value={comment.text}
+                          onChange={(e) => handleCommentChange(index, e.target.value)}
+                          placeholder={`請輸入第 ${index + 1} 則留言內容...`}
+                          className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-green-500 min-h-[42px] h-[42px] resize-y text-sm custom-scrollbar"
+                        />
+                        <button 
+                          onClick={() => removeCommentField(index)}
+                          className="p-2 text-slate-400 hover:text-red-500 mt-1"
+                        >
+                          <X size={20} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-6 border-t border-slate-200 pt-6 bg-amber-50/30 p-4 rounded-xl border-dashed">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-base font-bold text-amber-800 flex items-center gap-2">
+                      <Sparkles size={18} className="text-amber-500" /> 企劃方向 (客戶用)
+                    </label>
+                    <button 
+                      onClick={generatePlan}
+                      disabled={isGeneratingPlan || !form.content.trim()}
+                      className={`flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-full transition-colors ${
+                        isGeneratingPlan 
+                          ? 'bg-amber-100 text-amber-600 cursor-wait' 
+                          : !form.content.trim() 
+                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                            : 'bg-amber-100 hover:bg-amber-200 text-amber-700 shadow-sm'
+                      }`}
+                    >
+                      {isGeneratingPlan ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                      {isGeneratingPlan ? 'AI 生成企劃中...' : 'AI 自動萃取企劃'}
+                    </button>
+                  </div>
+                  
+                  <p className="text-xs text-amber-700/70 mb-2 font-medium">
+                    點擊按鈕，AI 會根據上方的文案與留言，自動生成 100 字內的寫作方向。生成後可直接在下方手動編輯修改。
+                  </p>
+
+                  <textarea
+                    ref={planTextareaRef}
+                    name="plan"
+                    value={form.plan}
+                    onChange={handleChange}
+                    placeholder={`1. 主文方向\na.\nb.\nc.\n\n2. 回文方向\n>>`}
+                    className="w-full px-4 py-3 bg-white border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none min-h-[100px] text-sm text-slate-700 leading-relaxed custom-scrollbar font-mono"
+                  />
+                </div>
+
+                <div className="flex gap-4 border-t border-slate-200 pt-6">
+                  <button 
+                    onClick={() => setShowPreview(true)}
+                    disabled={pureCount === 0}
+                    className="flex-1 py-3 rounded-xl font-bold text-lg flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors border border-indigo-200"
+                  >
+                    <Eye size={20} /> 發布預覽
+                  </button>
+                  
+                  <button 
+                    onClick={handleSave}
+                    disabled={pureCount === 0}
+                    className="flex-1 py-3 rounded-xl font-bold text-lg flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all"
+                  >
+                    <Save size={20} /> {form.id ? '儲存修改' : '儲存至資料夾'}
+                  </button>
+                </div>
+
+              </div>
+            </div>
+
+            {/* 右側：資料夾與文案庫 */}
+            <div className="xl:w-[350px] flex flex-col gap-4">
+              <div className="bg-slate-800 rounded-xl shadow-md flex flex-col h-[85vh] overflow-hidden">
+                
+                <div className="flex flex-col flex-shrink-0 bg-slate-900 border-b border-slate-700">
+                  <div className="flex overflow-x-auto custom-scrollbar p-2 gap-1 border-b border-slate-800">
+                    <div 
+                      onClick={() => { setSelectedProject('全部'); setSelectedPhase('全部'); }}
+                      className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${selectedProject === '全部' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+                    >
+                      全部專案
+                    </div>
+                    {Object.keys(projects).map(projName => (
+                      <div 
+                        key={projName}
+                        onClick={() => { setSelectedProject(projName); setSelectedPhase('全部'); }}
+                        className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap flex items-center gap-1.5 transition-colors ${selectedProject === projName ? 'bg-slate-700 text-white border border-slate-600' : 'text-slate-400 hover:bg-slate-800'}`}
+                      >
+                        <Folder size={14} className={selectedProject === projName ? 'text-blue-400' : ''} /> {projName}
+                        {projName !== '預設專案' && (
+                          <div 
+                            onClick={(e) => { e.stopPropagation(); deleteProject(projName); }}
+                            className={`ml-1 p-0.5 rounded-full transition-colors cursor-pointer ${selectedProject === projName ? 'text-slate-300 hover:text-red-400 hover:bg-slate-600' : 'text-slate-500 hover:text-red-400 hover:bg-slate-700'}`}
+                            title="刪除此專案"
+                          >
+                            <X size={14} />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {selectedProject !== '全部' && (
+                    <div className="flex overflow-x-auto custom-scrollbar p-2 gap-1 bg-slate-800/50">
+                      <div 
+                        onClick={() => setSelectedPhase('全部')}
+                        className={`cursor-pointer px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${selectedPhase === '全部' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}
+                      >
+                        全部階段
+                      </div>
+                      {projects[selectedProject]?.map(phaseName => (
+                        <div 
+                          key={phaseName}
+                          onClick={() => setSelectedPhase(phaseName)}
+                          className={`cursor-pointer px-3 py-1.5 rounded-lg text-xs font-
