@@ -337,15 +337,22 @@
         });
       };
 
-      const fetchWithBackoff = async (url, options, maxRetries = 5) => {
-        const delays = [1000, 2000, 4000, 8000, 16000];
+      // 優化後的重試機制：遇到 400 類別的客戶端錯誤直接停止重試，避免白白等待
+      const fetchWithBackoff = async (url, options, maxRetries = 3) => {
+        const delays = [1000, 2000, 4000];
         for (let i = 0; i < maxRetries; i++) {
           try {
             const response = await fetch(url, options);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response.ok) {
+              if (response.status >= 400 && response.status < 429) {
+                const errText = await response.text();
+                throw new Error(`API 錯誤 ${response.status}: ${errText}`);
+              }
+              throw new Error(`HTTP 錯誤狀態: ${response.status}`);
+            }
             return await response.json();
           } catch (error) {
-            if (i === maxRetries - 1) throw error;
+            if (i === maxRetries - 1 || error.message.includes('API 錯誤')) throw error;
             await new Promise(resolve => setTimeout(resolve, delays[i]));
           }
         }
@@ -371,10 +378,12 @@
             })
           });
 
-          const parsed = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text || '{"typos":[]}');
+          let jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{"typos":[]}';
+          jsonText = jsonText.replace(/```json/i, '').replace(/```/g, '').trim(); // 清洗 Markdown
+          const parsed = JSON.parse(jsonText);
           setTypos(parsed.typos || []);
         } catch (error) {
-          setCheckError("AI 檢查暫時無法連線，請稍後再試。");
+          setCheckError("AI 檢查失敗：" + (error.message.includes("API") ? "API 設定錯誤" : "暫時無法連線"));
         } finally {
           setIsChecking(false);
         }
@@ -468,7 +477,11 @@
             })
           });
 
-          const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{"title":"","board":""}';
+          let jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{"title":"","board":""}';
+          
+          // 強制清洗 Markdown 標籤 (避免 JSON 解析崩潰)
+          jsonText = jsonText.replace(/```json/i, '').replace(/```/g, '').trim();
+          
           const parsed = JSON.parse(jsonText);
           
           setForm(prev => ({ 
@@ -478,7 +491,7 @@
           }));
           
         } catch (error) {
-          showDialog('alert', '生成失敗', 'AI 生成標題失敗，請稍後再試。');
+          showDialog('alert', '生成失敗', 'AI 生成標題發生錯誤，請檢查 API Key 或是稍後再試。');
           console.error(error);
         } finally {
           setIsGeneratingTitle(false);
