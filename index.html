@@ -47,11 +47,14 @@
     } from 'https://esm.sh/lucide-react@0.292.0?deps=react@18.2.0';
 
     function App() {
-      // 專案與子資料夾結構 (主專案 -> 子資料夾/階段)
-      const [projects, setProjects] = useState({
-        '預設專案': ['預設子資料夾'],
-        '夏季保養品推廣': ['第一階段 6月', '第二階段 7月'],
-        '美食開箱': ['第一階段']
+      // 專案與子資料夾結構 (主專案 -> 子資料夾/階段) - 改為從 localStorage 讀取
+      const [projects, setProjects] = useState(() => {
+        const saved = localStorage.getItem('copywriting_projects');
+        return saved ? JSON.parse(saved) : {
+          '預設專案': ['預設子資料夾'],
+          '夏季保養品推廣': ['第一階段 6月', '第二階段 7月'],
+          '美食開箱': ['第一階段']
+        };
       });
       const [newProjectName, setNewProjectName] = useState('');
       const [newPhaseName, setNewPhaseName] = useState('');
@@ -59,8 +62,11 @@
       const [selectedProject, setSelectedProject] = useState('全部');
       const [selectedPhase, setSelectedPhase] = useState('全部');
 
-      // 專案筆記本狀態
-      const [projectNotes, setProjectNotes] = useState({});
+      // 專案筆記本狀態 - 改為從 localStorage 讀取
+      const [projectNotes, setProjectNotes] = useState(() => {
+        const saved = localStorage.getItem('copywriting_notes');
+        return saved ? JSON.parse(saved) : {};
+      });
       const [showNotebook, setShowNotebook] = useState(false);
 
       // 系統自訂彈跳視窗狀態 (取代系統原生 confirm / alert)
@@ -92,8 +98,11 @@
       const [batchComments, setBatchComments] = useState('');
       const [showBatchInput, setShowBatchInput] = useState(false);
 
-      // 儲存的文案列表
-      const [posts, setPosts] = useState([]);
+      // 儲存的文案列表 - 改為從 localStorage 讀取
+      const [posts, setPosts] = useState(() => {
+        const saved = localStorage.getItem('copywriting_posts');
+        return saved ? JSON.parse(saved) : [];
+      });
       
       // UI 狀態
       const [isChecking, setIsChecking] = useState(false);
@@ -105,6 +114,20 @@
 
       const textareaRef = useRef(null);
       const planTextareaRef = useRef(null);
+
+      // --- 新增：當資料改變時，自動存檔到瀏覽器的 localStorage 中 ---
+      useEffect(() => {
+        localStorage.setItem('copywriting_projects', JSON.stringify(projects));
+      }, [projects]);
+
+      useEffect(() => {
+        localStorage.setItem('copywriting_notes', JSON.stringify(projectNotes));
+      }, [projectNotes]);
+
+      useEffect(() => {
+        localStorage.setItem('copywriting_posts', JSON.stringify(posts));
+      }, [posts]);
+      // -------------------------------------------------------------
 
       // 自動調整內文輸入框高度
       useEffect(() => {
