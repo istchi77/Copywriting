@@ -904,4 +904,82 @@
                         <div 
                           key={phaseName}
                           onClick={() => setSelectedPhase(phaseName)}
-                          className={`cursor-pointer px-3 py-1.5 rounded-lg text-xs font-
+                          className={`cursor-pointer px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1 transition-colors ${selectedPhase === phaseName ? 'bg-purple-900/60 text-purple-200 border border-purple-500/50' : 'text-slate-400 hover:bg-slate-700'}`}
+                        >
+                          {phaseName}
+                          {!(selectedProject === '預設專案' && phaseName === '預設子資料夾') && projects[selectedProject].length > 1 && (
+                            <div 
+                              onClick={(e) => { e.stopPropagation(); deletePhase(selectedProject, phaseName); }}
+                              className={`ml-1 p-0.5 rounded-full transition-colors cursor-pointer ${selectedPhase === phaseName ? 'text-purple-300 hover:text-red-400 hover:bg-purple-800' : 'text-slate-500 hover:text-red-400 hover:bg-slate-600'}`}
+                              title="刪除此階段"
+                            >
+                              <X size={12} />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
+                  {posts.filter(p => (selectedProject === '全部' || p.project === selectedProject) && (selectedPhase === '全部' || p.phase === selectedPhase)).length === 0 ? (
+                    <div className="text-center text-slate-500 py-10 mt-10">
+                      <FolderOpen size={40} className="mx-auto mb-2 opacity-50" />
+                      <p>此分類目前沒有文案</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {posts.filter(p => (selectedProject === '全部' || p.project === selectedProject) && (selectedPhase === '全部' || p.phase === selectedPhase)).map(post => (
+                        <div key={post.id} className="bg-slate-700 border border-slate-600 rounded-lg p-3 hover:border-blue-500 transition-colors cursor-pointer" onClick={() => handleEdit(post)}>
+                          <div className="flex justify-between items-start mb-1">
+                            <span className={`text-[11px] px-2 py-0.5 rounded font-bold ${
+                              post.platform === 'Dcard' ? 'bg-blue-900 text-blue-200' : 
+                              post.platform === 'Mobile01' ? 'bg-green-900 text-green-200' : 
+                              'bg-gray-900 text-gray-200'
+                            }`}>
+                              {post.platform}
+                            </span>
+                            <div onClick={(e) => { e.stopPropagation(); handleDelete(post.id); }} className="text-slate-400 hover:text-red-400 p-1 cursor-pointer"><Trash2 size={14} /></div>
+                          </div>
+                          
+                          <h4 className="font-bold text-white text-sm mb-1 line-clamp-1">{post.title || '無標題'}</h4>
+                          
+                          <div className="flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-slate-300 mb-2">
+                            {post.project && <span className="bg-slate-600 px-1.5 py-0.5 rounded text-blue-300">{post.project}</span>}
+                            {post.phase && <span className="bg-slate-600 px-1.5 py-0.5 rounded text-purple-300">{post.phase}</span>}
+                          </div>
+
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400 mb-2">
+                            {post.publishDate && <span>發布: {post.publishDate}</span>}
+                            {post.board && <span>版別: {post.board}</span>}
+                          </div>
+                          
+                          <p className="text-slate-300 text-xs line-clamp-2 opacity-80 bg-slate-800 p-2 rounded mb-2">
+                            {post.content}
+                          </p>
+                          
+                          {post.plan && (
+                             <div className="text-[10px] text-amber-400 bg-amber-900/30 px-2 py-1 rounded inline-flex items-center gap-1">
+                               <Sparkles size={10} /> 已包含企劃
+                             </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
+    // 啟動 React
+    const root = createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
